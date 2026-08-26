@@ -1,0 +1,6 @@
+{
+  "name": "Cloud Notes",
+  "description": "A peaceful home for your thoughts with watercolor aesthetics and AI assistance.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

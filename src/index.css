@@ -1,0 +1,64 @@
+@import "tailwindcss";
+
+@layer utilities {
+  .font-serif-title {
+    font-family: 'Playfair Display', Georgia, serif;
+  }
+  .font-outfit {
+    font-family: 'Outfit', sans-serif;
+  }
+  .font-inter {
+    font-family: 'Inter', sans-serif;
+  }
+  .font-roboto {
+    font-family: 'Roboto', sans-serif;
+  }
+  .font-georgia {
+    font-family: Georgia, serif;
+  }
+  .scrollbar-none::-webkit-scrollbar {
+    display: none;
+  }
+  .scrollbar-none {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+}
+
+/* Ensure touch targets and smooth text flow on mobile */
+html, body {
+  overflow-x: hidden;
+  max-width: 100vw;
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Paper texture pattern simulation */
+.paper-texture {
+  background-color: #f8f5ee;
+  background-image: radial-gradient(#d8d2c4 0.65px, transparent 0.65px), radial-gradient(#d8d2c4 0.65px, #f8f5ee 0.65px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+}
+
+.paper-texture-dark {
+  background-color: #121915;
+  background-image: radial-gradient(#24332b 0.65px, transparent 0.65px), radial-gradient(#24332b 0.65px, #121915 0.65px);
+  background-size: 26px 26px;
+  background-position: 0 0, 13px 13px;
+}
+
+/* Custom scrollbar for serene feel */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d4ccb8;
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #b5ac97;
+}
