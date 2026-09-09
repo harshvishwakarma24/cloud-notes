@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { searchSuggestions } from './data';
 import { Sidebar } from './components/Sidebar';
 import { Header } from './components/Header';
@@ -29,9 +29,19 @@ export default function App() {
   const { user, loading } = useAuth();
 
   // Navigation & View States
-  const [activeTab, setActiveTab] = useState('home');
+  const [activeTab, setActiveTabState] = useState(() => (
+    typeof window !== 'undefined' && window.history.state?.cloudNotes?.activeTab
+      ? window.history.state.cloudNotes.activeTab
+      : 'home'
+  ));
 
-  const [selectedNoteId, setSelectedNoteId] = useState('n1');
+  const [selectedNoteId, setSelectedNoteId] = useState(() => (
+    typeof window !== 'undefined' && window.history.state?.cloudNotes?.selectedNoteId
+      ? window.history.state.cloudNotes.selectedNoteId
+      : 'n1'
+  ));
+  const activeTabRef = useRef(activeTab);
+  const selectedNoteIdRef = useRef(selectedNoteId);
   const [searchModalOpen, setSearchModalOpen] = useState(false);
   const [authMode, setAuthMode] = useState(null);
   const [notification, setNotification] = useState(null);
@@ -46,6 +56,59 @@ export default function App() {
   // Persistent States
   const [notes, setNotes] = useState([]);
   const [notesLoading, setNotesLoading] = useState(true);
+
+  // Keep internal screen changes in browser history for Android/browser Back.
+  const setActiveTab = (tab, { selectedNoteId: nextNoteId } = {}) => {
+    const currentTab = activeTabRef.current;
+    const currentNoteId = selectedNoteIdRef.current;
+    const noteId = nextNoteId ?? currentNoteId;
+
+    if (tab === currentTab && noteId === currentNoteId) return;
+
+    window.history.pushState(
+      {
+        ...window.history.state,
+        cloudNotes: { activeTab: tab, selectedNoteId: noteId }
+      },
+      '',
+      window.location.href
+    );
+    activeTabRef.current = tab;
+    selectedNoteIdRef.current = noteId;
+    setSelectedNoteId(noteId);
+    setActiveTabState(tab);
+  };
+
+  useEffect(() => {
+    const currentState = window.history.state?.cloudNotes;
+    if (!currentState?.activeTab) {
+      window.history.replaceState(
+        {
+          ...window.history.state,
+          cloudNotes: { activeTab: 'home', selectedNoteId: selectedNoteIdRef.current }
+        },
+        '',
+        window.location.href
+      );
+    } else {
+      activeTabRef.current = currentState.activeTab;
+      selectedNoteIdRef.current = currentState.selectedNoteId || 'n1';
+    }
+
+    const handlePopState = (event) => {
+      const navigationState = event.state?.cloudNotes;
+      if (!navigationState?.activeTab) return;
+
+      const noteId = navigationState.selectedNoteId || 'n1';
+      activeTabRef.current = navigationState.activeTab;
+      selectedNoteIdRef.current = noteId;
+      setSelectedNoteId(noteId);
+      setActiveTabState(navigationState.activeTab);
+    };
+
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
 
   const showNotification = (type, message) => {
     setNotification({ type, message, id: Date.now() });
@@ -263,8 +326,7 @@ export default function App() {
 
   // Handle Note Operations
   const handleOpenNote = (id) => {
-    setSelectedNoteId(id);
-    setActiveTab('editor');
+    setActiveTab('editor', { selectedNoteId: id });
   };
 
   const handleCreateNewNote = async () => {
@@ -311,8 +373,7 @@ export default function App() {
     };
 
     setNotes((prev) => [newNote, ...prev]);
-    setSelectedNoteId(newNote.id);
-    setActiveTab('editor');
+    setActiveTab('editor', { selectedNoteId: newNote.id });
   };
 
   const handleCreateNoteWithContent = async ({ content = '' } = {}) => {
@@ -357,8 +418,7 @@ export default function App() {
     };
 
     setNotes((prev) => [newNote, ...prev]);
-    setSelectedNoteId(newNote.id);
-    setActiveTab('editor');
+    setActiveTab('editor', { selectedNoteId: newNote.id });
   };
 
   const handleUpdateNote = async (updatedNote) => {
@@ -807,7 +867,7 @@ export default function App() {
             onToggleArchive={handleToggleArchive}
             onDeleteNote={handleDeleteNote}
             onNotify={showNotification}
-            onBack={() => setActiveTab('home')}
+            onBack={() => window.history.back()}
             isDarkTheme={isDarkTheme}
           />
         );

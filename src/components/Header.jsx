@@ -87,18 +87,7 @@ export const Header = ({
           <span className="hidden xs:inline">New note</span>
         </button>
 
-        {/* Notification Bell */}
-        <button 
-          className={`relative p-2 rounded-full border transition-colors cursor-pointer ${
-            isDarkTheme 
-              ? 'bg-[#1d2821] hover:bg-[#243129] border-[#34463a] text-[#aeb8ae]' 
-              : 'text-[#526156] border-transparent hover:bg-[#eae3d0]'
-          }`}
-          aria-label="Notifications"
-        >
-          <Bell className="w-4 h-4" />
-          <span className="absolute top-1.5 right-1.5 w-2 h-2 bg-[#c25a38] rounded-full"></span>
-        </button>
+        
 
         {/* User Avatar */}
         <button 

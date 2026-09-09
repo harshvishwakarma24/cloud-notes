@@ -161,6 +161,7 @@ export const HomeView = ({
       await createNoteWithContent({
         content: quickCaptureText.trim()
       });
+      onNotify('success', 'Note captured successfully.');
       // Clear the draft on success
       setQuickCaptureText('');
       setQuickCaptureTags([]);
@@ -273,7 +274,7 @@ export const HomeView = ({
             value={quickCaptureText}
             onChange={(e) => setQuickCaptureText(e.target.value)}
             onKeyDown={handleTextareaKeyDown}
-            placeholder="Quick capture... (Ctrl+Enter to save)"
+            placeholder="Quick capture... (Ctrl/Cmd+Enter to save)"
             rows={2}
             className={`w-full bg-transparent resize-none outline-none text-xs sm:text-sm font-outfit ${
               isDarkTheme ? 'text-[#e7e1d5] placeholder-[#829087]' : 'text-[#2c3830] placeholder-[#8a988d]'
@@ -344,11 +345,11 @@ export const HomeView = ({
               </button>
             </div>
             
-            {/* Submit / right microphone button */}
+            {/* Submit / Capture button */}
             <button 
               type="submit" 
               disabled={!quickCaptureText.trim() || isSaving}
-              className={`p-2 rounded-full transition-all cursor-pointer shrink-0 ml-auto flex items-center gap-1.5 ${
+                className={`px-3 py-2 rounded-xl transition-all cursor-pointer shrink-0 ml-auto flex items-center gap-1.5 text-xs font-semibold ${
                 isSaving
                   ? 'bg-[#1b3b2b]/50 text-[#f8f5ee]/50 cursor-not-allowed'
                   : isListening
@@ -359,8 +360,8 @@ export const HomeView = ({
               aria-label={isSaving ? 'Saving...' : 'Save Quick Capture note'}
               onClick={isListening ? (e) => { e.preventDefault(); toggleSpeechRecognition(); } : undefined}
             >
-              <Mic className="w-4 h-4" />
-              {isSaving && <span className="text-[10px] hidden sm:inline">Saving...</span>}
+              <ArrowUpRight className="w-4 h-4" />
+              <span>{isSaving ? 'Saving...' : isListening ? 'Stop' : 'Capture'}</span>
             </button>
           </div>
         </form>
