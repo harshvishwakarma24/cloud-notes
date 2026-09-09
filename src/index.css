@@ -62,3 +62,334 @@ html, body {
 ::-webkit-scrollbar-thumb:hover {
   background: #b5ac97;
 }
+
+/* Theme-aware dark scrollbar thumb */
+.paper-texture-dark ::-webkit-scrollbar-thumb,
+.dark-theme ::-webkit-scrollbar-thumb {
+  background: #405247;
+}
+.paper-texture-dark ::-webkit-scrollbar-thumb:hover,
+.dark-theme ::-webkit-scrollbar-thumb:hover {
+  background: #52665a;
+}
+
+/* Soft transition support */
+.soft-transitions,
+.soft-transitions * {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+/* Responsive Auto-Fit Cards Grid (2-column on mobile, fluid auto-fit on tablet and desktop) */
+.notes-grid-autofit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .notes-grid-autofit {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .notes-grid-autofit {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Pinned Notes Grid */
+.pinned-grid-autofit {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.625rem;
+}
+
+@media (min-width: 640px) {
+  .pinned-grid-autofit {
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .pinned-grid-autofit {
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+/* Dashboard Bottom Grid: Recent Notes and Quote */
+.dashboard-bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 0.875rem;
+}
+
+@media (min-width: 768px) {
+  .dashboard-bottom-grid {
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.25rem;
+  }
+}
+
+@media (min-width: 1280px) {
+  .dashboard-bottom-grid {
+    grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+    gap: 1.5rem;
+  }
+}
+
+/* ===================================================
+   Rich Text Editor (contenteditable) styles
+   =================================================== */
+
+/* Placeholder via data-attribute */
+.rich-editor:empty:before {
+  content: attr(data-placeholder);
+  color: #8a988d;
+  pointer-events: none;
+  display: block;
+}
+.rich-editor-dark:empty:before {
+  color: #829087;
+}
+
+/* Headings */
+.rich-editor h1 {
+  font-size: 1.75rem;
+  font-weight: 700;
+  line-height: 1.2;
+  margin-top: 1rem;
+  margin-bottom: 0.5rem;
+  font-family: 'Playfair Display', Georgia, serif;
+  color: #2c3830;
+}
+.rich-editor-dark h1 {
+  color: #e7e1d5;
+}
+
+.rich-editor h2 {
+  font-size: 1.35rem;
+  font-weight: 600;
+  line-height: 1.25;
+  margin-top: 0.875rem;
+  margin-bottom: 0.4rem;
+  font-family: 'Playfair Display', Georgia, serif;
+  color: #2c3830;
+}
+.rich-editor-dark h2 {
+  color: #e7e1d5;
+}
+
+/* Blockquote */
+.rich-editor blockquote {
+  border-left: 3px solid #6f9b7f;
+  margin: 0.75rem 0;
+  padding: 0.5rem 1rem;
+  color: #526156;
+  font-style: italic;
+  background: #f2ece0;
+  border-radius: 0 0.5rem 0.5rem 0;
+}
+.rich-editor-dark blockquote {
+  border-left-color: #6f9b7f;
+  background: #1d2821;
+  color: #aeb8ae;
+}
+
+/* Unordered list */
+.rich-editor ul {
+  list-style: disc;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+/* Ordered list */
+.rich-editor ol {
+  list-style: decimal;
+  padding-left: 1.5rem;
+  margin: 0.5rem 0;
+}
+
+.rich-editor li {
+  margin: 0.2rem 0;
+  line-height: 1.7;
+}
+
+/* Inline image */
+.rich-editor img {
+  max-width: 100%;
+  border-radius: 0.75rem;
+  margin: 0.75rem 0;
+  display: block;
+  border: 1px solid #e2d8be;
+}
+.rich-editor-dark img {
+  border-color: #344239;
+}
+
+/* Links inside editor */
+.rich-editor a {
+  color: #1b3b2b;
+  text-decoration: underline;
+}
+.rich-editor-dark a {
+  color: #6f9b7f;
+}
+
+/* Paragraphs get breathing room */
+.rich-editor p {
+  margin: 0.35rem 0;
+}
+.rich-editor br {
+  display: block;
+  content: '';
+  margin: 0.2rem 0;
+}
+
+/* Checklist items */
+.rich-editor .checklist-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.65rem;
+  margin: 0.45rem 0;
+  padding: 0.1rem 0.2rem;
+  border-radius: 0.5rem;
+  line-height: 1.7;
+  transition: background-color 160ms ease;
+}
+.rich-editor .checklist-item:hover {
+  background: rgba(111, 155, 127, 0.08);
+}
+.rich-editor .checklist-checkbox {
+  flex: 0 0 auto;
+  appearance: none;
+  width: 1.2rem;
+  height: 1.2rem;
+  margin: 0.25rem 0 0;
+  border: 1px solid #cbbf9f;
+  border-radius: 0.38rem;
+  background: #fbf8f0;
+  box-shadow: 0 1px 2px rgba(44, 56, 48, 0.08);
+  cursor: pointer;
+  position: relative;
+  transition: background-color 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.rich-editor .checklist-checkbox:hover {
+  border-color: #6f9b7f;
+  box-shadow: 0 2px 5px rgba(27, 59, 43, 0.14);
+  transform: translateY(-1px);
+}
+.rich-editor .checklist-checkbox:focus-visible {
+  outline: 2px solid rgba(111, 155, 127, 0.55);
+  outline-offset: 2px;
+}
+.rich-editor .checklist-checkbox:checked {
+  border-color: #6f9b7f;
+  background-color: #6f9b7f;
+  box-shadow: 0 1px 3px rgba(27, 59, 43, 0.2);
+}
+.rich-editor .checklist-checkbox:checked::after {
+  content: '';
+  position: absolute;
+  left: 0.35rem;
+  top: 0.16rem;
+  width: 0.35rem;
+  height: 0.62rem;
+  border: solid #f8f5ee;
+  border-width: 0 2px 2px 0;
+  transform: rotate(45deg);
+}
+.rich-editor .checklist-item[data-checked='true'] [data-checklist-text] {
+  color: #8a988d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+  text-decoration-color: #9aa89d;
+  opacity: 0.9;
+  transition: color 160ms ease, opacity 160ms ease;
+}
+.rich-editor-dark .checklist-checkbox {
+  border-color: #526256;
+  background: #202c25;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+.rich-editor-dark .checklist-item:hover {
+  background: rgba(111, 155, 127, 0.12);
+}
+.rich-editor-dark .checklist-checkbox:hover {
+  border-color: #6f9b7f;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+}
+.rich-editor-dark .checklist-item[data-checked='true'] [data-checklist-text] {
+  color: #829087;
+  text-decoration-color: #6f9b7f;
+}
+
+/* Checklist previews keep note cards at their existing dimensions. */
+.checklist-preview {
+  min-width: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(111, 155, 127, 0.45) transparent;
+}
+.checklist-preview-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.45rem;
+  min-width: 0;
+  line-height: 1.45;
+}
+.checklist-preview-item + .checklist-preview-item {
+  margin-top: 0.25rem;
+}
+.checklist-preview-box {
+  flex: 0 0 auto;
+  width: 0.8rem;
+  height: 0.8rem;
+  margin-top: 0.18rem;
+  border: 1px solid #cbbf9f;
+  border-radius: 0.25rem;
+  background: #fbf8f0;
+  position: relative;
+}
+.checklist-preview-box.is-checked {
+  border-color: #6f9b7f;
+  background: #6f9b7f;
+}
+.checklist-preview-box.is-checked::after {
+  content: '';
+  position: absolute;
+  left: 0.22rem;
+  top: 0.09rem;
+  width: 0.22rem;
+  height: 0.4rem;
+  border: solid #f8f5ee;
+  border-width: 0 1.5px 1.5px 0;
+  transform: rotate(45deg);
+}
+.checklist-preview-text {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.checklist-preview-text.is-checked {
+  color: #8a988d;
+  text-decoration: line-through;
+  text-decoration-thickness: 1px;
+}
+.rich-editor-dark ~ * .checklist-preview-box,
+.dark-theme .checklist-preview-box {
+  border-color: #526256;
+  background: #202c25;
+}
+.dark-theme .checklist-preview-box.is-checked {
+  border-color: #6f9b7f;
+  background: #6f9b7f;
+}
+.dark-theme .checklist-preview-text.is-checked {
+  color: #829087;
+}
+

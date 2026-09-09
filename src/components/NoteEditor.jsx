@@ -1,454 +1,603 @@
-import React, { useState, useEffect } from 'react';
-import { 
-  ArrowLeft, 
-  Share2, 
-  MoreHorizontal, 
-  Sparkles, 
-  X, 
-  Bold, 
-  Italic, 
-  Underline, 
-  Strikethrough, 
-  List, 
-  ListOrdered, 
-  Image as ImageIcon, 
-  Quote, 
-  Plus, 
-  Wand2, 
-  Languages, 
-  Check, 
-  Send,
+import React, { useState, useEffect, useRef, useCallback } from 'react';
+import {
+  ArrowLeft,
+  Share2,
+  MoreHorizontal,
+  Sparkles,
+  X,
+  Bold,
+  Italic,
+  Underline,
+  Strikethrough,
+  List,
+  ListOrdered,
+  ListChecks,
+  Quote,
   Heading1,
   Heading2,
-  FileText
+  Check,
+  Send
 } from 'lucide-react';
 
 export const NoteEditor = ({
   note,
   onUpdateNote = () => {},
+  onTogglePin = () => {},
+  onToggleFavorite = () => {},
+  onToggleArchive = () => {},
+  onDeleteNote = () => {},
+  onNotify = () => {},
   onBack = () => {},
-  aiCompanionOpen = false,
-  setAiCompanionOpen = () => {}
+  isDarkTheme = false
 }) => {
   const [title, setTitle] = useState(note?.title || '');
   const [content, setContent] = useState(note?.content || '');
-  const [imageUrl, setImageUrl] = useState(note?.imageUrl || '');
-  
-  // Selection state & AI popups
-  const [selectedText, setSelectedText] = useState('Creativity is not about being perfect.');
-  const [showAiModal, setShowAiModal] = useState(true); // Open initially to match screen 1 mockup
-  const [aiSuggestion, setAiSuggestion] = useState("Creativity is not about perfection; It's about authenticity.");
-  const [loadingAi, setLoadingAi] = useState(false);
+  const [saveStatus, setSaveStatus] = useState('saved');
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [shareNotification, setShareNotification] = useState('');
 
-  // AI Companion Panel state
-  const [companionSummary, setCompanionSummary] = useState("A reflection on slowing down and choosing clarity over distraction.");
-  const [companionImproved, setCompanionImproved] = useState("Some days are for rushing, and some days are for remembering what truly matters. Today, I choose clarity over noise.");
-  const [companionShorter, setCompanionShorter] = useState("Some days rush. Today, I choose clarity.");
-  const [companionQuery, setCompanionQuery] = useState('');
-  const [companionMessages, setCompanionMessages] = useState([]);
+  // Refs for tracking active note and debounce timer
+  const currentNoteIdRef = useRef(null);
+  const saveTimerRef = useRef(null);
+  const pendingSaveRef = useRef(null);
+  const onUpdateNoteRef = useRef(onUpdateNote);
+  const editorRef = useRef(null);
 
-  // Page switcher within the journal space
-  const [activePage, setActivePage] = useState("Today's thoughts");
+  onUpdateNoteRef.current = onUpdateNote;
 
+  const syncChecklistInputs = () => {
+    editorRef.current?.querySelectorAll('[data-checklist-item]').forEach((item) => {
+      const checkbox = item.querySelector('.checklist-checkbox');
+      if (checkbox) {
+        checkbox.checked = item.dataset.checked === 'true';
+      }
+    });
+  };
+
+  /*
+   * Synchronize local state ONLY when switching to a different note ID.
+   * This is critical: parent rerenders while typing will NOT overwrite
+   * local title or content, completely preventing cursor jump or focus loss.
+   */
   useEffect(() => {
-    if (note) {
+    if (note?.id && note.id !== currentNoteIdRef.current) {
+      // Flush the previous note's latest draft before switching notes.
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      if (pendingSaveRef.current) {
+        onUpdateNoteRef.current(pendingSaveRef.current);
+        pendingSaveRef.current = null;
+      }
+
+      currentNoteIdRef.current = note.id;
       setTitle(note.title || '');
       setContent(note.content || '');
-      setImageUrl(note.imageUrl || '');
+      if (editorRef.current) {
+        editorRef.current.innerHTML = note.content || '';
+        syncChecklistInputs();
+      }
+      setSaveStatus('saved');
     }
-  }, [note]);
+  }, [note?.id]);
 
-  const handleTitleChange = (newTitle) => {
+  /*
+   * Clean up timer on unmount
+   */
+  useEffect(() => {
+    return () => {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+      }
+      if (pendingSaveRef.current) {
+        onUpdateNoteRef.current(pendingSaveRef.current);
+      }
+    };
+  }, []);
+
+  /*
+   * Debounced save to Supabase via parent onUpdateNote.
+   * Updates after 600ms of typing inactivity.
+   */
+  const scheduleSave = useCallback((newTitle, newContent) => {
+    setSaveStatus('saving');
+
+    const pendingSave = {
+      ...note,
+      title: newTitle,
+      content: newContent
+    };
+    pendingSaveRef.current = pendingSave;
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+
+    saveTimerRef.current = setTimeout(() => {
+      onUpdateNote(pendingSave);
+      setSaveStatus('saved');
+      saveTimerRef.current = null;
+      pendingSaveRef.current = null;
+    }, 600);
+  }, [note, onUpdateNote]);
+
+  const handleTitleChange = (e) => {
+    const newTitle = e.target.value;
     setTitle(newTitle);
-    onUpdateNote({ ...note, title: newTitle, updatedAt: 'Just now' });
+    scheduleSave(newTitle, content);
   };
 
-  const handleContentChange = (newContent) => {
+  const handleContentChange = (e) => {
+    const newContent = e.currentTarget.innerHTML;
     setContent(newContent);
-    onUpdateNote({ ...note, content: newContent, updatedAt: 'Just now' });
+    scheduleSave(title, newContent);
   };
 
-  // AI Action Call (Fix grammar, Make longer, Change tone, Translate)
-  const triggerAiAction = async (action) => {
-    setLoadingAi(true);
-    try {
-      const res = await fetch('/api/ai/suggest', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action,
-          text: selectedText || content.slice(0, 100),
-        }),
-      });
-      const data = await res.json();
-      if (data.result) {
-        setAiSuggestion(data.result);
-      }
-    } catch (err) {
-      console.error('Error fetching AI suggestion:', err);
-    } finally {
-      setLoadingAi(false);
-    }
+  const saveEditorContent = () => {
+    if (!editorRef.current) return;
+    const newContent = editorRef.current.innerHTML;
+    setContent(newContent);
+    scheduleSave(title, newContent);
   };
 
-  // Handle Replace AI Suggestion
-  const handleReplaceSuggestion = () => {
-    if (!aiSuggestion) return;
-    if (selectedText && content.includes(selectedText)) {
-      handleContentChange(content.replace(selectedText, aiSuggestion));
+  const focusChecklistText = (item) => {
+    const text = item.querySelector('[data-checklist-text]');
+    if (!text || !editorRef.current) return;
+
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    editorRef.current.focus();
+  };
+
+  const createChecklistItem = (afterItem = null) => {
+    const item = document.createElement('div');
+    item.className = 'checklist-item';
+    item.dataset.checklistItem = 'true';
+    item.dataset.checked = 'false';
+
+    const checkbox = document.createElement('input');
+    checkbox.type = 'checkbox';
+    checkbox.className = 'checklist-checkbox';
+    checkbox.setAttribute('aria-label', 'Toggle checklist item');
+
+    const text = document.createElement('span');
+    text.dataset.checklistText = 'true';
+    text.contentEditable = 'true';
+    text.appendChild(document.createElement('br'));
+
+    item.append(checkbox, text);
+
+    if (afterItem) {
+      afterItem.after(item);
     } else {
-      handleContentChange(content + '\n\n' + aiSuggestion);
-    }
-    setShowAiModal(false);
-  };
-
-  // Handle Insert Below AI Suggestion
-  const handleInsertBelowSuggestion = () => {
-    if (!aiSuggestion) return;
-    handleContentChange(content + '\n\n' + aiSuggestion);
-    setShowAiModal(false);
-  };
-
-  // Handle AI Companion Query
-  const handleSendCompanionQuery = async (e) => {
-    e.preventDefault();
-    if (!companionQuery.trim()) return;
-
-    const userMsg = companionQuery.trim();
-    setCompanionMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-    setCompanionQuery('');
-
-    try {
-      const res = await fetch('/api/ai/companion', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          noteTitle: title,
-          noteContent: content,
-          userQuery: userMsg,
-        }),
-      });
-      const data = await res.json();
-      if (data.answer) {
-        setCompanionMessages(prev => [...prev, { role: 'ai', text: data.answer }]);
+      const selection = window.getSelection();
+      const range = selection?.rangeCount ? selection.getRangeAt(0) : null;
+      const currentItem = selection?.anchorNode?.parentElement?.closest?.('[data-checklist-item]');
+      if (currentItem) {
+        currentItem.after(item);
+      } else if (range && editorRef.current.contains(range.commonAncestorContainer)) {
+        range.deleteContents();
+        range.insertNode(item);
+      } else {
+        editorRef.current.append(item);
       }
+    }
+
+    focusChecklistText(item);
+    saveEditorContent();
+  };
+
+  const handleChecklistClick = (e) => {
+    if (!e.target.matches('.checklist-checkbox')) return;
+
+    const item = e.target.closest('[data-checklist-item]');
+    if (!item) return;
+
+    item.dataset.checked = e.target.checked ? 'true' : 'false';
+    saveEditorContent();
+  };
+
+  const exitChecklistItem = (item) => {
+    const normalBlock = document.createElement('div');
+    normalBlock.appendChild(document.createElement('br'));
+    item.replaceWith(normalBlock);
+
+    const range = document.createRange();
+    range.selectNodeContents(normalBlock);
+    range.collapse(true);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+    editorRef.current.focus();
+    saveEditorContent();
+  };
+
+  const handleEditorKeyDown = (e) => {
+    const selection = window.getSelection();
+    const anchor = selection?.anchorNode;
+    const item = anchor?.parentElement?.closest?.('[data-checklist-item]');
+    if (!item || !selection?.isCollapsed) return;
+
+    const text = item.querySelector('[data-checklist-text]');
+    const isEmpty = !text?.textContent?.trim();
+
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      if (isEmpty) {
+        exitChecklistItem(item);
+      } else {
+        createChecklistItem(item);
+      }
+    }
+
+    if (e.key === 'Backspace' && isEmpty) {
+      e.preventDefault();
+      exitChecklistItem(item);
+    }
+  };
+
+  /*
+   * Back button: flush pending save immediately before navigating back.
+   */
+  const handleBackClick = () => {
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+      onUpdateNote(pendingSaveRef.current || {
+        ...note,
+        title,
+        content
+      });
+      pendingSaveRef.current = null;
+    }
+    onBack();
+  };
+
+  const applyFormat = (command, value = null) => {
+    if (!editorRef.current) return;
+
+    editorRef.current.focus();
+    document.execCommand(command, false, value);
+    const newContent = editorRef.current.innerHTML;
+    setContent(newContent);
+    scheduleSave(title, newContent);
+  };
+
+  /*
+   * Native Share / Clipboard fallback
+   */
+  const handleShare = async () => {
+    const shareText = `${title}\n\n${content}`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: title || 'Cloud Note', text: shareText });
+        return;
+      } catch {
+        // User cancelled or share unavailable, fallback to clipboard
+      }
+    }
+    try {
+      await navigator.clipboard.writeText(shareText);
+      setShareNotification('Copied to clipboard!');
+      setTimeout(() => setShareNotification(''), 2500);
     } catch (err) {
-      console.error('Error in AI companion query:', err);
+      console.error('Failed to copy note share text:', err);
+      onNotify('error', 'Could not copy the note. Please try again.');
     }
   };
 
   return (
-    <div className="flex-1 flex flex-col h-full bg-[#f8f5ee] overflow-hidden relative">
+    <div
+      className={`flex-1 flex flex-col h-full overflow-hidden relative ${
+        isDarkTheme ? 'bg-[#18201b]' : 'bg-[#f8f5ee]'
+      }`}
+    >
       {/* Top Header Navigation Bar */}
-      <div className="px-4 sm:px-6 lg:px-8 py-3 sm:py-4 flex items-center justify-between border-b border-[#e5dcce] bg-[#f8f5ee]/90 backdrop-blur-xs shrink-0">
-        <div className="flex items-center gap-2 sm:gap-4 min-w-0">
-          <button 
-            onClick={onBack}
-            className="p-1.5 rounded-lg text-[#526156] hover:bg-[#eae3d0] transition-colors cursor-pointer shrink-0"
+      <div
+        className={`px-3 sm:px-6 lg:px-8 py-2.5 sm:py-4 flex items-center justify-between border-b shrink-0 gap-2 backdrop-blur-xs ${
+          isDarkTheme
+            ? 'bg-[#1b251f]/90 border-[#344239]'
+            : 'bg-[#f8f5ee]/90 border-[#e5dcce]'
+        }`}
+      >
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0 flex-1">
+          <button
+            onClick={handleBackClick}
+            className={`p-1.5 rounded-lg transition-colors cursor-pointer shrink-0 ${
+              isDarkTheme
+                ? 'text-[#aeb8ae] hover:bg-[#202c25]'
+                : 'text-[#526156] hover:bg-[#eae3d0]'
+            }`}
             aria-label="Back to notes"
           >
             <ArrowLeft className="w-4 h-4" />
           </button>
-          <div className="flex items-center gap-1.5 sm:gap-2 text-xs text-[#738276] truncate">
-            <span className="shrink-0">{note?.space || 'Journal'}</span>
-            <span className="shrink-0">/</span>
-            <span className="font-semibold text-[#2c3830] truncate">{title || 'Untitled'}</span>
+
+          <div className="flex items-center gap-1 sm:gap-2 text-xs min-w-0 truncate">
+            <span
+              className={`shrink-0 font-medium hidden xs:inline ${
+                isDarkTheme ? 'text-[#829087]' : 'text-[#738276]'
+              }`}
+            >
+              Notes
+            </span>
+            <span className={`shrink-0 hidden xs:inline ${isDarkTheme ? 'text-[#829087]' : 'text-[#738276]'}`}>
+              /
+            </span>
+            <span
+              className={`font-semibold truncate ${
+                isDarkTheme ? 'text-[#e7e1d5]' : 'text-[#2c3830]'
+              }`}
+            >
+              {title || 'Untitled Note'}
+            </span>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-3 shrink-0 ml-2">
-          <span className="text-[11px] text-[#8a988d] hidden md:inline">Saved just now</span>
-          
-          <button 
-            onClick={() => setAiCompanionOpen(!aiCompanionOpen)}
-            className={`p-2 rounded-full border border-[#d8ceb3] transition-all cursor-pointer ${
-              aiCompanionOpen ? 'bg-[#1b3b2b] text-[#e2c275]' : 'bg-[#f0ebd9] text-[#526156] hover:bg-[#e8e1cb]'
-            }`}
-            title="Toggle AI Companion"
-            aria-label="Toggle AI Companion"
-          >
-            <Sparkles className="w-4 h-4" />
-          </button>
+        <div className="flex items-center gap-1.5 sm:gap-3 shrink-0 relative">
+          {shareNotification && (
+            <span className="text-[11px] font-medium text-[#6f9b7f] animate-in fade-in">
+              {shareNotification}
+            </span>
+          )}
 
-          <button className="flex items-center gap-1.5 px-3 sm:px-4 py-1.5 bg-[#1b3b2b] text-[#f8f5ee] rounded-full text-xs font-medium hover:bg-[#284f3b] transition-all cursor-pointer">
+          <span
+            className={`text-[11px] hidden md:flex items-center gap-1 ${
+              isDarkTheme ? 'text-[#829087]' : 'text-[#8a988d]'
+            }`}
+          >
+            {saveStatus === 'saving' ? (
+              'Saving...'
+            ) : (
+              <>
+                <Check className="w-3 h-3" />
+                Saved
+              </>
+            )}
+          </span>
+
+
+
+          <button
+            onClick={handleShare}
+            className="flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-4 py-1.5 bg-[#1b3b2b] text-[#f8f5ee] rounded-full text-xs font-medium hover:bg-[#284f3b] transition-all cursor-pointer"
+          >
             <Share2 className="w-3.5 h-3.5" />
             <span className="hidden xs:inline">Share</span>
           </button>
 
-          <button 
-            className="p-1.5 rounded-lg text-[#738276] hover:bg-[#eae3d0] cursor-pointer"
-            aria-label="More options"
-          >
-            <MoreHorizontal className="w-4 h-4" />
-          </button>
+          {/* More Options Dropdown */}
+          <div className="relative">
+            <button
+              onClick={() => setShowMoreMenu(!showMoreMenu)}
+              className={`p-1.5 rounded-lg cursor-pointer ${
+                isDarkTheme
+                  ? 'text-[#829087] hover:bg-[#202c25]'
+                  : 'text-[#738276] hover:bg-[#eae3d0]'
+              }`}
+              aria-label="More options"
+            >
+              <MoreHorizontal className="w-4 h-4" />
+            </button>
+
+            {showMoreMenu && (
+              <div className={`absolute right-0 top-full mt-2 w-48 border rounded-2xl p-1.5 shadow-2xl z-50 animate-in fade-in zoom-in-95 ${
+                isDarkTheme ? 'bg-[#1b251f] border-[#344239]' : 'bg-[#f8f5ee] border-[#e2d8be]'
+              }`}>
+                <button
+                  onClick={() => { setShowMoreMenu(false); onTogglePin(note?.id); }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 cursor-pointer ${
+                    isDarkTheme ? 'text-[#e7e1d5] hover:bg-[#202c25]' : 'text-[#2c3830] hover:bg-[#eee7d8]'
+                  }`}
+                >
+                  {note?.pinned ? 'Unpin Note' : 'Pin Note'}
+                </button>
+
+                <button
+                  onClick={() => { setShowMoreMenu(false); onToggleFavorite(note?.id); }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 cursor-pointer ${
+                    isDarkTheme ? 'text-[#e7e1d5] hover:bg-[#202c25]' : 'text-[#2c3830] hover:bg-[#eee7d8]'
+                  }`}
+                >
+                  {note?.isFavorite ? 'Remove Favorite' : 'Add to Favorites'}
+                </button>
+
+                <button
+                  onClick={() => { setShowMoreMenu(false); onToggleArchive(note?.id); }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 cursor-pointer ${
+                    isDarkTheme ? 'text-[#e7e1d5] hover:bg-[#202c25]' : 'text-[#2c3830] hover:bg-[#eee7d8]'
+                  }`}
+                >
+                  {note?.isArchived ? 'Unarchive Note' : 'Archive Note'}
+                </button>
+
+                <button
+                  onClick={() => { setShowMoreMenu(false); onDeleteNote(note?.id); onBack(); }}
+                  className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium flex items-center gap-2 text-red-500 cursor-pointer ${
+                    isDarkTheme ? 'hover:bg-[#202c25]' : 'hover:bg-[#eee7d8]'
+                  }`}
+                >
+                  Move to Trash
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
       {/* Main Workspace Body */}
       <div className="flex-1 flex overflow-hidden relative">
-        {/* Sub Sidebar Pages Navigation (md and up) */}
-        <div className="hidden md:flex w-44 lg:w-48 border-r border-[#e5dcce] p-4 flex-col gap-1 shrink-0 bg-[#f5f0e4]/50 overflow-y-auto">
-          <div className="text-xs font-semibold text-[#2c3830] mb-2 flex items-center justify-between">
-            <span>Personal Journal</span>
-          </div>
-
-          {["Today's thoughts", "Gratitude", "Dreams", "Ideas"].map((pg) => (
-            <button
-              key={pg}
-              onClick={() => setActivePage(pg)}
-              className={`w-full text-left px-3 py-2 rounded-xl text-xs font-medium transition-all cursor-pointer truncate ${
-                activePage === pg 
-                  ? 'bg-[#e8decb] text-[#1b3b2b] font-semibold' 
-                  : 'text-[#6e7d71] hover:bg-[#eee7d8]'
-              }`}
-            >
-              {pg}
-            </button>
-          ))}
-
-          <button 
-            onClick={() => setActivePage('New Page')}
-            className="flex items-center gap-2 px-3 py-2 mt-2 text-xs font-medium text-[#738276] hover:text-[#1b3b2b] transition-colors cursor-pointer"
-          >
-            <Plus className="w-3.5 h-3.5" />
-            <span>New page</span>
-          </button>
-        </div>
 
         {/* Main Canvas Area */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8 max-w-3xl mx-auto w-full space-y-4 sm:space-y-6 relative min-w-0">
+        <div className="flex-1 overflow-y-auto px-3.5 py-4 sm:px-6 sm:py-6 lg:px-8 lg:py-8 max-w-3xl mx-auto w-full flex flex-col relative min-w-0 h-full">
+
           {/* Note Title Input */}
           <input
             type="text"
             value={title}
-            onChange={(e) => handleTitleChange(e.target.value)}
+            onChange={handleTitleChange}
             placeholder="Title..."
-            className="w-full font-serif-title font-bold text-2xl sm:text-3xl text-[#2c3830] outline-none bg-transparent"
+            className={`w-full font-serif-title font-bold text-xl sm:text-2xl lg:text-3xl outline-none bg-transparent break-words min-w-0 shrink-0 pb-1 ${
+              isDarkTheme
+                ? 'text-[#e7e1d5] placeholder-[#829087]'
+                : 'text-[#2c3830]'
+            }`}
           />
 
           {/* Formatting Toolbar */}
-          <div className="flex items-center gap-1 sm:gap-1.5 pb-3 border-b border-[#e5dcce] text-[#6e7d71] text-xs overflow-x-auto scrollbar-none py-1">
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] font-bold cursor-pointer shrink-0" title="Heading 1"><Heading1 className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] cursor-pointer shrink-0" title="Heading 2"><Heading2 className="w-3.5 h-3.5" /></button>
-            <div className="w-px h-4 bg-[#d8ceb3] shrink-0" />
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] font-bold cursor-pointer shrink-0" title="Bold"><Bold className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] italic cursor-pointer shrink-0" title="Italic"><Italic className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] underline cursor-pointer shrink-0" title="Underline"><Underline className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] line-through cursor-pointer shrink-0" title="Strikethrough"><Strikethrough className="w-3.5 h-3.5" /></button>
-            <div className="w-px h-4 bg-[#d8ceb3] shrink-0" />
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] cursor-pointer shrink-0" title="Bulleted list"><List className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] cursor-pointer shrink-0" title="Numbered list"><ListOrdered className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] cursor-pointer shrink-0" title="Insert image"><ImageIcon className="w-3.5 h-3.5" /></button>
-            <button type="button" className="p-1.5 rounded-lg hover:bg-[#eae3d0] cursor-pointer shrink-0" title="Quote"><Quote className="w-3.5 h-3.5" /></button>
-            
-            <button 
+          <div
+            className={`flex items-center flex-wrap gap-1 sm:gap-1.5 pb-2.5 sm:pb-3 border-b text-xs py-1 shrink-0 mt-2 sm:mt-3 ${
+              isDarkTheme
+                ? 'border-[#344239] text-[#aeb8ae]'
+                : 'border-[#e5dcce] text-[#6e7d71]'
+            }`}
+          >
+            {/* H1 */}
+            <button
               type="button"
-              onClick={() => setShowAiModal(true)}
-              className="ml-auto flex items-center gap-1 px-2.5 py-1 bg-[#1b3b2b] text-[#f8f5ee] rounded-full text-[11px] font-medium shrink-0 cursor-pointer shadow-xs"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('formatBlock', 'h1')}
+              className={`p-1.5 rounded-lg font-bold cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Heading 1"
             >
-              <Sparkles className="w-3 h-3 text-[#e2c275]" />
-              <span>AI Tools</span>
+              <Heading1 className="w-3.5 h-3.5" />
             </button>
+
+            {/* H2 */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('formatBlock', 'h2')}
+              className={`p-1.5 rounded-lg cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Heading 2"
+            >
+              <Heading2 className="w-3.5 h-3.5" />
+            </button>
+
+            <div className={`w-px h-4 shrink-0 ${isDarkTheme ? 'bg-[#344239]' : 'bg-[#d8ceb3]'}`} />
+
+            {/* Bold */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('bold')}
+              className={`p-1.5 rounded-lg font-bold cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Bold"
+            >
+              <Bold className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Italic */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('italic')}
+              className={`p-1.5 rounded-lg italic cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Italic"
+            >
+              <Italic className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Underline */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('underline')}
+              className={`p-1.5 rounded-lg underline cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Underline"
+            >
+              <Underline className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Strikethrough */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('strikeThrough')}
+              className={`p-1.5 rounded-lg line-through cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Strikethrough"
+            >
+              <Strikethrough className="w-3.5 h-3.5" />
+            </button>
+
+            <div className={`w-px h-4 shrink-0 ${isDarkTheme ? 'bg-[#344239]' : 'bg-[#d8ceb3]'}`} />
+
+            {/* Bulleted List */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('insertUnorderedList')}
+              className={`p-1.5 rounded-lg cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Bulleted list"
+            >
+              <List className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Numbered List */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('insertOrderedList')}
+              className={`p-1.5 rounded-lg cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Numbered list"
+            >
+              <ListOrdered className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Quote */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => applyFormat('formatBlock', 'blockquote')}
+              className={`p-1.5 rounded-lg cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Blockquote"
+            >
+              <Quote className="w-3.5 h-3.5" />
+            </button>
+
+            {/* Checklist */}
+            <button
+              type="button"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => createChecklistItem()}
+              className={`p-1.5 rounded-lg cursor-pointer shrink-0 ${isDarkTheme ? 'hover:bg-[#202c25] hover:text-[#e7e1d5]' : 'hover:bg-[#eae3d0]'}`}
+              title="Checklist"
+              aria-label="Insert checklist item"
+            >
+              <ListChecks className="w-3.5 h-3.5" />
+            </button>
+
+
           </div>
 
-          {/* Main Content Area */}
-          <div className="space-y-4 font-outfit text-sm text-[#2c3830] leading-relaxed">
-            <textarea
-              value={content}
-              onChange={(e) => handleContentChange(e.target.value)}
-              rows={12}
-              className="w-full bg-transparent outline-none resize-none font-outfit text-sm sm:text-base text-[#2c3830] leading-relaxed min-h-[220px]"
-              placeholder="Begin writing your mindful thoughts..."
+          {/* Main Content Area — uncontrolled editor keeps the cursor stable while typing */}
+          <div className="flex-1 flex flex-col min-w-0 font-outfit text-sm leading-relaxed mt-3 sm:mt-5 pb-6">
+            <div
+              ref={editorRef}
+              contentEditable
+              suppressContentEditableWarning
+              onInput={handleContentChange}
+              onClick={handleChecklistClick}
+              onKeyDown={handleEditorKeyDown}
+              data-placeholder="Begin writing your mindful thoughts..."
+              role="textbox"
+              aria-label="Note content"
+              aria-multiline="true"
+              className={`rich-editor ${isDarkTheme ? 'rich-editor-dark' : ''} flex-1 w-full bg-transparent outline-none font-outfit text-sm sm:text-base leading-relaxed min-h-[350px] break-words ${
+                isDarkTheme
+                  ? 'text-[#e7e1d5] placeholder-[#829087]'
+                  : 'text-[#2c3830] placeholder-[#8a988d]'
+              }`}
             />
-
-            {/* Embedded Watercolor Artwork Image */}
-            {imageUrl && (
-              <div className="rounded-2xl overflow-hidden border border-[#e2d8be] shadow-sm my-4 sm:my-6">
-                <img 
-                  src={imageUrl} 
-                  alt="Watercolor landscape artwork" 
-                  className="w-full h-48 sm:h-64 object-cover"
-                />
-              </div>
-            )}
           </div>
 
-          {/* Floating AI Suggestion Modal & Context Menu (Matching Screen 1) */}
-          {showAiModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/30 backdrop-blur-xs">
-              <div className="relative flex flex-col sm:flex-row gap-3 sm:gap-4 max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                {/* AI Suggestion Box */}
-                <div className="bg-[#f8f5ee] border border-[#e2d8be] rounded-2xl p-4 sm:p-5 shadow-2xl flex-1 space-y-4 animate-in fade-in zoom-in-95">
-                  <div className="flex items-center justify-between border-b border-[#e5dcce] pb-2">
-                    <span className="text-xs font-semibold text-[#1b3b2b] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#e2c275]" />
-                      AI Suggestion
-                    </span>
-                    <button 
-                      onClick={() => setShowAiModal(false)}
-                      className="text-[#8a988d] hover:text-[#1b3b2b] p-1 cursor-pointer"
-                    >
-                      <X className="w-4 h-4" />
-                    </button>
-                  </div>
 
-                  <div className="bg-[#f2ece0] p-3 sm:p-3.5 rounded-xl text-xs text-[#2c3830] font-outfit border border-[#e2d8be] min-h-[60px]">
-                    {loadingAi ? (
-                      <div className="flex items-center gap-2 text-[#738276] py-2">
-                        <Sparkles className="w-4 h-4 animate-spin text-[#1b3b2b]" />
-                        <span>Refining with Gemini AI...</span>
-                      </div>
-                    ) : (
-                      aiSuggestion
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-2 justify-end pt-1">
-                    <button 
-                      onClick={handleReplaceSuggestion}
-                      className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#f8f5ee] hover:bg-[#eee7d8] border border-[#d8ceb3] rounded-xl text-xs font-medium text-[#2c3830] transition-all cursor-pointer"
-                    >
-                      Replace
-                    </button>
-                    <button 
-                      onClick={handleInsertBelowSuggestion}
-                      className="px-3 sm:px-4 py-1.5 sm:py-2 bg-[#1b3b2b] hover:bg-[#284f3b] text-[#f8f5ee] rounded-xl text-xs font-medium transition-all cursor-pointer"
-                    >
-                      Insert below
-                    </button>
-                  </div>
-                </div>
-
-                {/* Floating More Actions Context Menu */}
-                <div className="bg-[#f8f5ee] border border-[#e2d8be] rounded-2xl p-3 shadow-2xl w-full sm:w-52 space-y-1 self-start animate-in fade-in slide-in-from-left-4">
-                  <div className="text-[11px] font-semibold text-[#8a988d] px-2 py-1 uppercase tracking-wider">
-                    More actions
-                  </div>
-
-                  <button 
-                    onClick={() => triggerAiAction('fix-grammar')}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-[#2c3830] hover:bg-[#eee7d8] transition-colors text-left cursor-pointer"
-                  >
-                    <Wand2 className="w-3.5 h-3.5 text-[#1b3b2b] shrink-0" />
-                    <span>Fix grammar</span>
-                  </button>
-
-                  <button 
-                    onClick={() => triggerAiAction('make-longer')}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-[#2c3830] hover:bg-[#eee7d8] transition-colors text-left cursor-pointer"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-[#1b3b2b] shrink-0" />
-                    <span>Make it longer</span>
-                  </button>
-
-                  <button 
-                    onClick={() => triggerAiAction('change-tone')}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-[#2c3830] hover:bg-[#eee7d8] transition-colors text-left cursor-pointer"
-                  >
-                    <Sparkles className="w-3.5 h-3.5 text-[#1b3b2b] shrink-0" />
-                    <span>Change tone</span>
-                  </button>
-
-                  <button 
-                    onClick={() => triggerAiAction('translate')}
-                    className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs font-medium text-[#2c3830] hover:bg-[#eee7d8] transition-colors text-left cursor-pointer"
-                  >
-                    <Languages className="w-3.5 h-3.5 text-[#1b3b2b] shrink-0" />
-                    <span>Translate</span>
-                  </button>
-                </div>
-              </div>
-            </div>
-          )}
         </div>
-
-        {/* Right Slide-Over AI Companion Drawer (Responsive: Drawer on small screens, sidebar on lg) */}
-        {aiCompanionOpen && (
-          <div className="fixed inset-y-0 right-0 z-40 lg:relative lg:inset-auto w-80 max-w-[85vw] border-l border-[#e5dcce] bg-[#f8f5ee] p-4 sm:p-5 flex flex-col justify-between shrink-0 shadow-2xl lg:shadow-none h-full overflow-y-auto animate-in slide-in-from-right duration-200">
-            <div className="space-y-4 sm:space-y-6">
-              <div className="flex items-center justify-between border-b border-[#e5dcce] pb-3">
-                <span className="text-xs font-semibold text-[#1b3b2b] flex items-center gap-1.5">
-                  <Sparkles className="w-4 h-4 text-[#e2c275]" />
-                  AI Companion
-                </span>
-                <button 
-                  onClick={() => setAiCompanionOpen(false)}
-                  className="text-[#8a988d] hover:text-[#1b3b2b] p-1 cursor-pointer"
-                  aria-label="Close AI Companion"
-                >
-                  <X className="w-4 h-4" />
-                </button>
-              </div>
-
-              {/* Summary Section */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-semibold text-[#738276] uppercase tracking-wider">
-                  Summary
-                </div>
-                <p className="text-xs text-[#2c3830] bg-[#f2ece0] p-3 rounded-xl border border-[#e2d8be] leading-relaxed">
-                  {companionSummary}
-                </p>
-              </div>
-
-              {/* Improve writing Section */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-semibold text-[#738276] uppercase tracking-wider">
-                  Improve writing
-                </div>
-                <p className="text-xs text-[#2c3830] bg-[#f2ece0] p-3 rounded-xl border border-[#e2d8be] leading-relaxed">
-                  {companionImproved}
-                </p>
-              </div>
-
-              {/* Make it shorter Section */}
-              <div className="space-y-1.5">
-                <div className="text-[11px] font-semibold text-[#738276] uppercase tracking-wider">
-                  Make it shorter
-                </div>
-                <p className="text-xs text-[#2c3830] bg-[#f2ece0] p-3 rounded-xl border border-[#e2d8be] leading-relaxed">
-                  {companionShorter}
-                </p>
-              </div>
-
-              {/* Conversation Messages */}
-              {companionMessages.length > 0 && (
-                <div className="space-y-2 pt-2 border-t border-[#e2d8be]">
-                  {companionMessages.map((msg, idx) => (
-                    <div 
-                      key={idx}
-                      className={`p-2.5 rounded-xl text-xs ${
-                        msg.role === 'user' 
-                          ? 'bg-[#1b3b2b] text-[#f8f5ee] ml-4' 
-                          : 'bg-[#f2ece0] text-[#2c3830] mr-4 border border-[#e2d8be]'
-                      }`}
-                    >
-                      {msg.text}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Bottom Input Field */}
-            <form onSubmit={handleSendCompanionQuery} className="pt-4 border-t border-[#e5dcce] mt-4">
-              <div className="flex items-center gap-2 bg-[#f2ece0] border border-[#e2d8be] rounded-full px-3 py-1.5">
-                <input
-                  type="text"
-                  value={companionQuery}
-                  onChange={(e) => setCompanionQuery(e.target.value)}
-                  placeholder="Ask anything..."
-                  className="w-full bg-transparent text-xs text-[#2c3830] outline-none"
-                />
-                <button 
-                  type="submit" 
-                  className="p-1 rounded-full bg-[#1b3b2b] text-[#f8f5ee] cursor-pointer hover:bg-[#284f3b]"
-                >
-                  <Send className="w-3 h-3" />
-                </button>
-              </div>
-            </form>
-          </div>
-        )}
       </div>
     </div>
   );

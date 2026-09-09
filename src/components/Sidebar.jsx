@@ -1,30 +1,50 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import { 
   Home, 
   FileText, 
-  LayoutGrid, 
-  BookOpen, 
-  Sparkles, 
-  Search, 
-  Calendar, 
+  Star, 
+  Pin, 
+  Archive, 
   Trash2, 
   Settings, 
-  HelpCircle, 
   Cloud, 
-  X 
+  X,
+  Search
 } from 'lucide-react';
 
 export const Sidebar = ({
+  isOpen = true,
+  onClose = () => {},
   activeTab,
   setActiveTab,
-  openSearchModal,
-  profile,
-  mobileOpen = false,
-  setMobileOpen = () => {}
+  openSearchModal = () => {},
+  profile = {},
+  isDarkTheme = false
 }) => {
+  // Close drawer on Escape key
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && isOpen) {
+        onClose();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isOpen, onClose]);
+
   const handleNavClick = (tab) => {
     setActiveTab(tab);
-    setMobileOpen(false);
+    // On small/touch screens, close the drawer after selection
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      onClose();
+    }
+  };
+
+  const handleSearchClick = () => {
+    openSearchModal();
+    if (typeof window !== 'undefined' && window.innerWidth < 1024) {
+      onClose();
+    }
   };
 
   const navItemClass = (tab) => `
@@ -37,8 +57,9 @@ export const Sidebar = ({
 
   const sidebarContent = (
     <div className="flex flex-col justify-between h-full">
+      {/* Top & Navigation Section */}
       <div className="p-4 flex flex-col gap-6 overflow-y-auto">
-        {/* App Branding */}
+        {/* App Branding & Close Button */}
         <div className="flex items-center justify-between px-2">
           <div 
             onClick={() => handleNavClick('splash')}
@@ -49,21 +70,21 @@ export const Sidebar = ({
             </div>
             <div>
               <h1 className="font-serif-title font-semibold text-lg text-[#f0f5ea] tracking-wide leading-none">Cloud Notes</h1>
-              <p className="text-[11px] text-[#8ea896] mt-0.5">Mindful spaces</p>
+              <p className="text-[11px] text-[#8ea896] mt-0.5">Mindful notes</p>
             </div>
           </div>
 
           {/* Close button for mobile drawer */}
           <button
-            onClick={() => setMobileOpen(false)}
-            className="p-1.5 rounded-lg text-[#a3b8aa] hover:text-[#f8f5ee] hover:bg-[#254233] lg:hidden"
+            onClick={onClose}
+            className="p-1.5 rounded-lg text-[#a3b8aa] hover:text-[#f8f5ee] hover:bg-[#254233] transition-colors cursor-pointer lg:hidden"
             aria-label="Close navigation"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
-        {/* Main Navigation */}
+        {/* Main Navigation Items */}
         <nav className="flex flex-col gap-1">
           <button 
             onClick={() => handleNavClick('home')}
@@ -80,59 +101,29 @@ export const Sidebar = ({
             <FileText className="w-4 h-4 shrink-0" />
             <span>Notes</span>
           </button>
-        </nav>
 
-        {/* Spaces Section */}
-        <div className="flex flex-col gap-1">
-          <div className="px-3 text-[11px] font-semibold text-[#6e8a78] uppercase tracking-wider mb-1">
-            Spaces
-          </div>
           <button 
-            onClick={() => handleNavClick('spaces')}
-            className={navItemClass('spaces')}
+            onClick={() => handleNavClick('favorites')}
+            className={navItemClass('favorites')}
           >
-            <LayoutGrid className="w-4 h-4 shrink-0" />
-            <span>Spaces</span>
-          </button>
-          <button 
-            onClick={() => handleNavClick('journal')}
-            className={navItemClass('journal')}
-          >
-            <BookOpen className="w-4 h-4 shrink-0" />
-            <span>Journal</span>
-          </button>
-        </div>
-
-        {/* Favorites Section */}
-        <div className="flex flex-col gap-1">
-          <div className="px-3 text-[11px] font-semibold text-[#6e8a78] uppercase tracking-wider mb-1">
-            Favorites
-          </div>
-          <button 
-            onClick={() => handleNavClick('ai-companion')}
-            className={navItemClass('ai-companion')}
-          >
-            <Sparkles className="w-4 h-4 text-[#e2c275] shrink-0" />
-            <span>AI Companion</span>
-          </button>
-          
-          <button 
-            onClick={() => {
-              openSearchModal();
-              setMobileOpen(false);
-            }}
-            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#a3b8aa] hover:text-[#f8f5ee] hover:bg-[#254233] transition-all cursor-pointer"
-          >
-            <Search className="w-4 h-4 shrink-0" />
-            <span>Search</span>
+            <Star className="w-4 h-4 shrink-0 text-[#e2c275]" />
+            <span>Favorites</span>
           </button>
 
           <button 
-            onClick={() => handleNavClick('calendar')}
-            className={navItemClass('calendar')}
+            onClick={() => handleNavClick('pinned')}
+            className={navItemClass('pinned')}
           >
-            <Calendar className="w-4 h-4 shrink-0" />
-            <span>Calendar</span>
+            <Pin className="w-4 h-4 shrink-0" />
+            <span>Pinned</span>
+          </button>
+
+          <button 
+            onClick={() => handleNavClick('archive')}
+            className={navItemClass('archive')}
+          >
+            <Archive className="w-4 h-4 shrink-0" />
+            <span>Archive</span>
           </button>
 
           <button 
@@ -142,25 +133,23 @@ export const Sidebar = ({
             <Trash2 className="w-4 h-4 shrink-0" />
             <span>Trash</span>
           </button>
+        </nav>
+
+        {/* Tools & Search */}
+        <div className="flex flex-col gap-1 border-t border-[#264836] pt-4">
+
+          <button 
+            onClick={handleSearchClick}
+            className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium text-[#a3b8aa] hover:text-[#f8f5ee] hover:bg-[#254233] transition-all cursor-pointer"
+          >
+            <Search className="w-4 h-4 shrink-0" />
+            <span>Search</span>
+          </button>
         </div>
       </div>
 
-      {/* Bottom Menu */}
+      {/* Bottom Menu: Settings & Profile */}
       <div className="p-4 border-t border-[#264836] flex flex-col gap-1 bg-[#163325]">
-        <button 
-          onClick={() => handleNavClick('profile')}
-          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all cursor-pointer ${
-            activeTab === 'profile' ? 'bg-[#325240] text-[#f8f5ee]' : 'text-[#a3b8aa] hover:text-[#f8f5ee] hover:bg-[#254233]'
-          }`}
-        >
-          <img 
-            src={profile.avatarUrl} 
-            alt={profile.name} 
-            className="w-6 h-6 rounded-full object-cover border border-[#487057] shrink-0"
-          />
-          <span className="truncate text-left text-xs font-medium">{profile.name}</span>
-        </button>
-
         <button 
           onClick={() => handleNavClick('settings')}
           className={navItemClass('settings')}
@@ -170,11 +159,17 @@ export const Sidebar = ({
         </button>
 
         <button 
-          onClick={() => handleNavClick('help')}
-          className={navItemClass('help')}
+          onClick={() => handleNavClick('profile')}
+          className={`w-full flex items-center gap-3 px-3 py-2 rounded-xl text-sm transition-all cursor-pointer ${
+            activeTab === 'profile' ? 'bg-[#325240] text-[#f8f5ee]' : 'text-[#a3b8aa] hover:text-[#f8f5ee] hover:bg-[#254233]'
+          }`}
         >
-          <HelpCircle className="w-4 h-4 shrink-0" />
-          <span>Help</span>
+          <img 
+            src={profile?.avatarUrl || 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=400&q=80'} 
+            alt={profile?.name || 'User'} 
+            className="w-6 h-6 rounded-full object-cover border border-[#487057] shrink-0"
+          />
+          <span className="truncate text-left text-xs font-medium">{profile?.name || 'Profile'}</span>
         </button>
       </div>
     </div>
@@ -182,22 +177,29 @@ export const Sidebar = ({
 
   return (
     <>
-      {/* Desktop Sidebar (lg and up) */}
-      <aside className="hidden lg:flex w-60 bg-[#1b3b2b] text-[#e2ebd8] flex-col justify-between shrink-0 h-screen sticky top-0 z-30 select-none border-r border-[#264836]">
-        {sidebarContent}
+      {/* Desktop In-Flow Sidebar (Smooth collapsible transition with 300ms ease-in-out) */}
+      <aside 
+        className={`hidden lg:flex flex-col justify-between shrink-0 h-screen sticky top-0 z-30 select-none bg-[#1b3b2b] text-[#e2ebd8] transition-all duration-300 ease-in-out overflow-hidden ${
+          isOpen ? 'w-60 border-r border-[#264836] opacity-100' : 'w-0 border-r-0 opacity-0 pointer-events-none'
+        }`}
+      >
+        <div className="w-60 h-full flex flex-col justify-between shrink-0">
+          {sidebarContent}
+        </div>
       </aside>
 
-      {/* Mobile Drawer (Below lg) */}
-      {mobileOpen && (
-        <div className="fixed inset-0 z-50 lg:hidden flex">
+      {/* Mobile Drawer (Visible below lg when opened, with backdrop overlay) */}
+      {isOpen && (
+        <div className="fixed inset-0 z-50 lg:hidden flex" role="dialog" aria-modal="true" aria-label="Navigation Drawer">
           {/* Backdrop overlay */}
           <div 
-            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity"
-            onClick={() => setMobileOpen(false)}
+            className="fixed inset-0 bg-black/50 backdrop-blur-xs transition-opacity duration-300 ease-in-out animate-in fade-in"
+            onClick={onClose}
+            aria-hidden="true"
           />
 
-          {/* Drawer container */}
-          <aside className="relative w-72 max-w-[80vw] bg-[#1b3b2b] text-[#e2ebd8] flex flex-col justify-between h-full shadow-2xl z-10 border-r border-[#264836] animate-in slide-in-from-left duration-200">
+          {/* Drawer Container */}
+          <aside className="relative w-72 max-w-[85vw] bg-[#1b3b2b] text-[#e2ebd8] flex flex-col justify-between h-full shadow-2xl z-10 border-r border-[#264836] animate-in slide-in-from-left duration-300 ease-in-out select-none">
             {sidebarContent}
           </aside>
         </div>
@@ -205,3 +207,5 @@ export const Sidebar = ({
     </>
   );
 };
+
+
